@@ -195,7 +195,7 @@
   #define FIL_RUNOUT2_PIN               MT_DET_2_PIN
 #endif
 
-//#define MKSPWC
+#define MKSPWC
 #ifdef MKSPWC
   #define SUICIDE_PIN                       PW_OFF   // Enable MKSPWC SUICIDE PIN
   #define SUICIDE_PIN_INVERTING             false // Enable MKSPWC PIN STATE
