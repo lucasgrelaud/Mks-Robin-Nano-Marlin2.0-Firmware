@@ -19,7 +19,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
  */
-#if defined(ARDUINO_ARCH_STM32) && !defined(STM32GENERIC)
+
+#include "../../platforms.h"
+
+#ifdef HAL_STM32
 
 #include "../../../inc/MarlinConfig.h"
 
@@ -49,7 +52,7 @@ void TFT_SPI::Init() {
   SPIx.Init.NSS                = SPI_NSS_SOFT;
   SPIx.Init.Mode               = SPI_MODE_MASTER;
   SPIx.Init.Direction          = (TFT_MISO_PIN == TFT_MOSI_PIN) ? SPI_DIRECTION_1LINE : SPI_DIRECTION_2LINES;
-  SPIx.Init.BaudRatePrescaler  = SPI_BAUDRATEPRESCALER_2;
+  SPIx.Init.BaudRatePrescaler  = SPI_BAUDRATEPRESCALER_8;
   SPIx.Init.CLKPhase           = SPI_PHASE_1EDGE;
   SPIx.Init.CLKPolarity        = SPI_POLARITY_LOW;
   SPIx.Init.DataSize           = SPI_DATASIZE_8BIT;
@@ -76,7 +79,7 @@ void TFT_SPI::Init() {
         DMAtx.Instance = DMA2_Stream3;
         DMAtx.Init.Channel = DMA_CHANNEL_3;
       #endif
-      SPIx.Init.BaudRatePrescaler  = SPI_BAUDRATEPRESCALER_4;
+      SPIx.Init.BaudRatePrescaler  = SPI_BAUDRATEPRESCALER_8;
     }
   #endif
   #ifdef SPI2_BASE
@@ -125,12 +128,20 @@ void TFT_SPI::DataTransferBegin(uint16_t DataSize) {
   WRITE(TFT_CS_PIN, LOW);
 }
 
+#ifdef TFT_DEFAULT_DRIVER
+  #include "../../../lcd/tft_io/tft_ids.h"
+#endif
+
 uint32_t TFT_SPI::GetID() {
   uint32_t id;
   id = ReadID(LCD_READ_ID);
-
-  if ((id & 0xFFFF) == 0 || (id & 0xFFFF) == 0xFFFF)
+  if ((id & 0xFFFF) == 0 || (id & 0xFFFF) == 0xFFFF) {
     id = ReadID(LCD_READ_ID4);
+    #ifdef TFT_DEFAULT_DRIVER
+      if ((id & 0xFFFF) == 0 || (id & 0xFFFF) == 0xFFFF)
+        id = TFT_DEFAULT_DRIVER;
+    #endif
+   }
   return id;
 }
 
@@ -228,8 +239,32 @@ void TFT_SPI::TransmitDMA(uint32_t MemoryIncrease, uint16_t *Data, uint16_t Coun
   SET_BIT(SPIx.Instance->CR2, SPI_CR2_TXDMAEN);   // Enable Tx DMA Request
 
   HAL_DMA_PollForTransfer(&DMAtx, HAL_DMA_FULL_TRANSFER, HAL_MAX_DELAY);
+  
   Abort();
 }
 
+void TFT_SPI::TransmitDMA_IT(uint32_t MemoryIncrease, uint16_t *Data, uint16_t Count) {
+  
+  // DMAtx.Init.MemInc = MemoryIncrease;
+  // HAL_DMA_Init(&DMAtx);
+
+  // if (TFT_MISO_PIN == TFT_MOSI_PIN)
+  //   SPI_1LINE_TX(&SPIx);
+
+  // DataTransferBegin();
+
+  // HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, 5, 0);
+  // HAL_NVIC_EnableIRQ(DMA2_Stream3_IRQn);
+  // HAL_DMA_Start_IT(&DMAtx, (uint32_t)Data, (uint32_t)&(SPIx.Instance->DR), Count);
+  // __HAL_SPI_ENABLE(&SPIx);
+  // SET_BIT(SPIx.Instance->CR2, SPI_CR2_TXDMAEN);   // Enable Tx DMA Request
+} 
+
+extern "C" void DMA2_Stream3_IRQHandler(void) {
+  HAL_DMA_IRQHandler(&TFT_SPI::DMAtx);
+}
+
+
+
 #endif // HAS_SPI_TFT
-#endif // ARDUINO_ARCH_STM32 && !STM32GENERIC
+#endif // HAL_STM32
